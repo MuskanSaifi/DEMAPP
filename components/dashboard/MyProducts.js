@@ -12,15 +12,14 @@ import {
   Platform,
   Alert,
   ToastAndroid,
-  Switch 
+  Switch ,
+    RefreshControl
 } from "react-native";
 import axios from "axios";
 import Icon from "react-native-vector-icons/FontAwesome";
 import * as ImagePicker from "react-native-image-picker";
 import { Picker } from "@react-native-picker/picker";
 
-// Assuming LocationSelector is a converted React Native component
-// Make sure this path is correct based on your project structure
 import LocationSelector from "../../components/LocationSelector";
 import { AuthContext } from "../../context/AuthContext"; // adjust path if needed
 
@@ -41,6 +40,7 @@ const AllProducts = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedField, setSelectedField] = useState("");
+    const [refreshing, setRefreshing] = useState(false); // ✅ Add refreshing state
   const { token } = useContext(AuthContext); // ✅ get token from context
 
   const [formData, setFormData] = useState({
@@ -133,35 +133,42 @@ const AllProducts = () => {
   },
   });
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        if (!token) {
-          showToast("User not authenticated", "error");
-          return;
-        }
-        // Assuming your API endpoint is correct and accessible
-        const res = await axios.get(
-          `https://www.dialexportmart.com/api/userprofile/manageproducts`, // **UPDATE WITH YOUR ACTUAL BACKEND URL**
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (res.data.success && Array.isArray(res.data.products)) {
-          setProducts(res.data.products.reverse());
-        } else {
-          showToast(res.data.message || "No products found.", "error");
-        }
-      } catch (error) {
-        console.error("Error fetching products:", error);
-        showToast("Error fetching products.", "error");
-      } finally {
-        setLoading(false);
+   // ✅ Define the function to fetch products
+  const fetchProducts = async () => {
+    try {
+      if (!token) {
+        showToast("User not authenticated", "error");
+        return;
       }
-    };
+      const res = await axios.get(
+        `https://www.dialexportmart.com/api/userprofile/manageproducts`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (res.data.success && Array.isArray(res.data.products)) {
+        setProducts(res.data.products.reverse());
+      } else {
+        showToast(res.data.message || "No products found.", "error");
+      }
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      showToast("Error fetching products.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Create the onRefresh handler function
+  const onRefresh = async () => {
+    setRefreshing(true); // Start showing the refresh indicator
+    await fetchProducts(); // Call the fetch function to get new data
+    setRefreshing(false); // Hide the refresh indicator when done
+  };
+
+  useEffect(() => {
     fetchProducts();
-  }, [token]); // Added token to dependency array to re-fetch if it changes
+  }, [token]);
 
   const handleDelete = async (id) => {
     Alert.alert(
@@ -574,8 +581,13 @@ const handleUpdate = async () => {
 
 
   return (
-    <ScrollView style={styles.container}>
-      {loading ? (
+  <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >   
+       {loading ? (
         <ActivityIndicator
           size="large"
           color="#0000ff"
@@ -2076,7 +2088,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: "#f0f2f5", // Lighter, modern background
-    marginBottom: 100, // More space
+    marginBottom: 30, // More space
   },
   header: {
     flexDirection: "row",

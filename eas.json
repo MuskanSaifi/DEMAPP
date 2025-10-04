@@ -1,13 +1,12 @@
 {
-   "cli": {
+  "cli": {
     "appVersionSource": "remote"
   },
   "build": {
     "production": {
       "autoIncrement": true,
-      "android": {
-        "buildType": "apk"
-      }
+      "developmentClient": false,
+      "distribution": "store"
     },
     "development": {
       "developmentClient": true,
@@ -24,6 +23,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "dialexportmart@gmail.com",
+        "ascAppId": "6751717591"
+      }
+    }
   }
 }

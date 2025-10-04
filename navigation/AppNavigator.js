@@ -26,7 +26,7 @@ export default function AppNavigator() {
   if (isLoading) {
     return <SplashScreen />;
   }
-
+ 
   return (
     <Stack.Navigator>
       {user ? (

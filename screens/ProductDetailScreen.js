@@ -30,13 +30,13 @@ import {
 } from '../redux/wishlistSlice';
 
 const { width } = Dimensions.get('window');
-
 export default function ProductDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { productId } = route.params;
-
+  
   const dispatch = useDispatch();
+  const user = useSelector((state) => state.user.user);
   const { items: wishlistItems, loading: wishlistLoading } = useSelector((state) => state.wishlist);
 
   const [product, setProduct] = useState(null);
@@ -55,16 +55,30 @@ export default function ProductDetailScreen() {
     (item) => item._id === productId || (item.product && item.product._id === productId)
   );
 
+  // Handles the sidebar toggle state
   const toggleSidebar = () => {
-    const toValue = sidebarVisible ? -width * 0.8 : 0;
+    setSidebarVisible(prev => !prev);
+  };
+
+  // New useEffect to handle the animation based on sidebarVisible state
+  useEffect(() => {
+    const toValue = sidebarVisible ? 0 : -width * 0.8;
     Animated.timing(sidebarX, {
       toValue,
       duration: 300,
       useNativeDriver: true,
-    }).start(() => {
-      setSidebarVisible(!sidebarVisible);
+    }).start();
+  }, [sidebarVisible]);
+
+  // Close sidebar on screen blur
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('blur', () => {
+      if (sidebarVisible) {
+        setSidebarVisible(false);
+      }
     });
-  };
+    return unsubscribe;
+  }, [navigation, sidebarVisible]);
 
   useLayoutEffect(() => {
     StatusBar.setBarStyle('dark-content', true);
@@ -112,6 +126,10 @@ export default function ProductDetailScreen() {
   };
 
   const handleWishlistToggle = () => {
+      if (!user) {
+    navigation.navigate('WishlistScreen');
+    return;
+  }
     if (isProductInWishlist) {
       dispatch(removeProductFromWishlist(productId));
     } else {
@@ -171,25 +189,24 @@ export default function ProductDetailScreen() {
         <View style={styles.bottomTabsContainer}>
           <BottomTabs />
         </View>
-      </SafeAreaView>
+      </SafeAreaView>                                                                                 
     );
   }
 
   return (
     <SafeAreaView style={styles.safeAreaContainer} edges={['top', 'left', 'right']}>
-      {/* Sidebar */}
-      <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarX }] }]}>
-        <Sidebar
-          activeScreen={null}
-          setActiveScreen={() => {}}
-          toggleSidebar={toggleSidebar}
-          navigation={navigation}
-        />
-      </Animated.View>
-
-      {/* Backdrop for sidebar */}
-      {sidebarVisible && (
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={toggleSidebar} />
+ {sidebarVisible && isFocused && (
+        <>
+          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={toggleSidebar} />
+          <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarX }] }]}>
+            <Sidebar
+              activeScreen={null}
+              setActiveScreen={() => {}}
+              toggleSidebar={toggleSidebar}
+              navigation={navigation}
+            />
+          </Animated.View>
+        </>
       )}
 
       {/* Search Bar */}
@@ -240,7 +257,7 @@ export default function ProductDetailScreen() {
               <Ionicons
                 name={isProductInWishlist ? 'heart' : 'heart-outline'}
                 size={24}
-                color={isProductInWishlist ? 'red' : 'black'}
+                color={isProductInWishlist ? '#FF6347' : 'black'}
               />
             </TouchableOpacity>
             <View style={styles.metaInfo}>
@@ -603,15 +620,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.04)', // A semi-transparent background for better visibility
+    backgroundColor: 'rgba(191, 191, 191, 0.13)',
     padding: 8,
     borderRadius: 20,
-    // Add these for iOS and Android
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
     zIndex: 10,
   },
 

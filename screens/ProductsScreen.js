@@ -81,6 +81,8 @@ const ProductsScreen = () => {
 
   // Redux hooks
   const dispatch = useDispatch();
+      const user = useSelector((state) => state.user.user);
+  
   const wishlistItems = useSelector((state) => state.wishlist.items);
   const wishlistLoading = useSelector((state) => state.wishlist.loading);
 
@@ -184,7 +186,10 @@ const ProductsScreen = () => {
   const toggleWishlist = (product) => {
     // Check if the product is already in the wishlist using the product's _id
     const isWishlisted = wishlistItems.some(item => item._id === product._id);
-    
+            if (!user) {
+    navigation.navigate('WishlistScreen');
+    return;
+  }
     if (isWishlisted) {
       // If it's wishlisted, remove it
       dispatch(removeProductFromWishlist(product._id));

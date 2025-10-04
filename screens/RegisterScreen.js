@@ -60,15 +60,25 @@ export default function RegisterScreen() {
         companyName,
       });
 
+      // ✅ SUCCESS CASE (HTTP 200)
       if (res.status === 200) {
         setMessage(res.data.message);
         setLoginNumber(fullMobileNumber);
         setSignup(true);
       } else {
+        // This block is technically unreachable with a standard axios setup, 
+        // but it's good practice.
         setError(res.data.error || 'Something went wrong');
       }
     } catch (err) {
-      setError('Something went wrong!');
+      // ✅ ERROR CASE: Check if the response from the server exists
+      if (err.response && err.response.data && err.response.data.error) {
+        // Use the specific error message sent by your server
+        setError(err.response.data.error);
+      } else {
+        // A network error or other unexpected error occurred
+        setError('Something went wrong!');
+      }
     } finally {
       setLoading(false);
     }
@@ -108,12 +118,11 @@ export default function RegisterScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.formContainer}>
-             <Image 
-          source={require('../assets/company_logo.png')} // ✅ Correct for local image
+        <Image
+          source={require('../assets/company_logo.png')}
           style={styles.productImage}
           resizeMode="contain"
         />
-      
         <Text style={styles.title}>{signup ? 'Verify OTP' : 'Create Account'}</Text>
         <Text style={styles.subtitle}>
           {signup ? 'Enter the OTP sent to your mobile' : 'Fill in the details below to register'}
@@ -242,11 +251,11 @@ const styles = StyleSheet.create({
     padding: 24,
     borderRadius: 16,
   },
-    productImage: {
-  width: '80',
-  height: '80',
-  alignSelf: 'center',
-},
+  productImage: {
+    width: 80, // Corrected from '80' to a number
+    height: 80, // Corrected from '80' to a number
+    alignSelf: 'center',
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -278,7 +287,6 @@ const styles = StyleSheet.create({
   phoneContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
   },
   countryPickerButton: {
     paddingVertical: 12,
@@ -287,6 +295,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     borderRadius: 12,
     backgroundColor: '#F9FAFB',
+    position: 'relative',
+    bottom: 8,
   },
   countryPickerText: {
     fontSize: 16,
