@@ -30,6 +30,8 @@ export default function RegisterScreen() {
   const [loginNumber, setLoginNumber] = useState('');
   const [signup, setSignup] = useState(false);
 
+  const [termsAccepted, setTermsAccepted] = useState(false); // ✅ checkbox state
+
   const { login } = useContext(AuthContext);
   const navigation = useNavigation();
 
@@ -45,12 +47,16 @@ export default function RegisterScreen() {
 
   // Registration submit
   const handleSubmit = async () => {
+    if (!termsAccepted) {
+      Alert.alert('Terms Required', 'You must accept Terms & Privacy Policy to continue.');
+      return;
+    }
+
     setLoading(true);
     setMessage('');
     setError('');
 
     const fullMobileNumber = `+${callingCode}${mobileNumber}`;
-
     try {
       const res = await axios.post('https://www.dialexportmart.com/api/auth/sendotp', {
         fullname,
@@ -60,23 +66,17 @@ export default function RegisterScreen() {
         companyName,
       });
 
-      // ✅ SUCCESS CASE (HTTP 200)
       if (res.status === 200) {
         setMessage(res.data.message);
         setLoginNumber(fullMobileNumber);
         setSignup(true);
       } else {
-        // This block is technically unreachable with a standard axios setup, 
-        // but it's good practice.
         setError(res.data.error || 'Something went wrong');
       }
     } catch (err) {
-      // ✅ ERROR CASE: Check if the response from the server exists
-      if (err.response && err.response.data && err.response.data.error) {
-        // Use the specific error message sent by your server
+      if (err.response?.data?.error) {
         setError(err.response.data.error);
       } else {
-        // A network error or other unexpected error occurred
         setError('Something went wrong!');
       }
     } finally {
@@ -84,36 +84,51 @@ export default function RegisterScreen() {
     }
   };
 
+
   // OTP verification
-  const handleVerifyOtp = async () => {
-    setLoading(true);
-    setMessage('');
-    setError('');
+const handleVerifyOtp = async () => {
+  setLoading(true);
+  setMessage('');
+  setError('');
 
-    try {
-      const res = await axios.post('https://www.dialexportmart.com/api/auth/verifyotp', {
-        mobileNumber: loginNumber,
-        otp,
-      });
+  try {
+    const res = await axios.post('https://www.dialexportmart.com/api/auth/verifyotp', {
+      mobileNumber: loginNumber,
+      otp,
+    });
 
-      if (res.status === 200) {
-        setMessage('OTP verified successfully!');
+    if (res.status === 200) {
+      setMessage('OTP verified successfully!');
 
-        if (res.data.token) {
-          await login(res.data.user, res.data.token);
-        }
+      if (res.data.token) {
+        // login user first
+        await login(res.data.user, res.data.token);
 
-        Alert.alert('Registered Success', 'You are now logged in');
-        setSignup(false);
-      } else {
-        setError(res.data.error || 'Invalid OTP');
+        // ✅ Call your accept-terms API with token
+        await axios.post(
+          'https://www.dialexportmart.com/api/user/accept-terms',
+          {},
+          {
+            headers: { Authorization: `Bearer ${res.data.token}` },
+          }
+        );
       }
-    } catch (err) {
-      setError('Invalid OTP or something went wrong!');
-    } finally {
-      setLoading(false);
+
+      // ✅ Navigate and reset stack so back button won't go back to Register/Login
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    } else {
+      setError(res.data.error || 'Invalid OTP');
     }
-  };
+  } catch (err) {
+    setError('Invalid OTP or something went wrong!');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -146,7 +161,11 @@ export default function RegisterScreen() {
               onPress={handleVerifyOtp}
               disabled={loading}
             >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify OTP</Text>}
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Verify OTP</Text>
+              )}
             </TouchableOpacity>
           </>
         ) : (
@@ -196,7 +215,6 @@ export default function RegisterScreen() {
                 show={showCountryPicker}
                 onSelect={onSelectCountry}
                 onClose={() => setShowCountryPicker(false)}
-                // You can add more props here (like theme, searchable, etc.)
               />
             )}
 
@@ -218,12 +236,42 @@ export default function RegisterScreen() {
               placeholderTextColor="#666"
             />
 
+            {/* ✅ Terms & Privacy Checkbox */}
             <TouchableOpacity
-              style={styles.button}
-              onPress={handleSubmit}
-              disabled={loading}
+              style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}
+              onPress={() => setTermsAccepted(!termsAccepted)}
             >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send OTP</Text>}
+              <Text style={{ fontSize: 16 }}>
+                {termsAccepted ? '☑' : '☐'}
+              </Text>
+              <Text style={{ marginLeft: 8, fontSize: 14, color: '#111827' }}>
+                I agree to the{' '}
+                <Text
+                  style={{ color: '#2563EB', textDecorationLine: 'underline' }}
+                  onPress={() => navigation.navigate('TermsScreen')}
+                >
+                  Terms of Use
+                </Text>{' '}
+                and{' '}
+                <Text
+                  style={{ color: '#2563EB', textDecorationLine: 'underline' }}
+                  onPress={() => navigation.navigate('TermsScreen')}
+                >
+                  Privacy Policy
+                </Text>
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, !termsAccepted && { backgroundColor: '#ccc' }]}
+              onPress={handleSubmit}
+              disabled={loading || !termsAccepted}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Send OTP</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -252,8 +300,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   productImage: {
-    width: 80, // Corrected from '80' to a number
-    height: 80, // Corrected from '80' to a number
+    width: 80,
+    height: 80,
     alignSelf: 'center',
   },
   title: {

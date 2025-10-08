@@ -112,7 +112,7 @@ const SubcategoryScreen = ({ route, navigation }) => {
       onPress={() => handleSidebarPress(item)}
     >
       <Image
-        source={{ uri: item.icon || 'https://via.placeholder.com/40/C0C0C0/FFFFFF?text=Icon' }}
+        source={{ uri: item.icon || 'https://via.placeholder.com/40/C0C0C0/FFFFFF?text=Icon' }}l
         style={styles.sidebarIcon}
         resizeMode="contain"
       />
