@@ -1,5 +1,5 @@
 // ProductsScreen.js
-import React, { useEffect, useState, useLayoutEffect, useRef } from "react";
+import React, { useEffect, useState, useLayoutEffect, useRef, useCallback  } from "react";
 import {
   View,
   Text,
@@ -17,15 +17,19 @@ import {
 } from "react-native";
 import { useRoute, useNavigation, useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from 'react-native-safe-area-context';
-import SearchBarWithSuggestions from '../components/SearchBar';
+import { SafeAreaView } from "react-native-safe-area-context";
+import SearchBarWithSuggestions from "../components/SearchBar";
 import Buyfrom from "../components/BuyForm";
-import BottomTabs from '../components/BottomTabs';
+import BottomTabs from "../components/BottomTabs";
 import Sidebar from "../components/Sidebar";
 
 // Redux imports
 import { useSelector, useDispatch } from "react-redux";
-import { addProductToWishlist, removeProductFromWishlist, fetchUserWishlist } from '../redux/wishlistSlice';
+import {
+  addProductToWishlist,
+  removeProductFromWishlist,
+  fetchUserWishlist,
+} from "../redux/wishlistSlice";
 
 const { width } = Dimensions.get("window");
 
@@ -50,11 +54,17 @@ const SubcategorySlider = ({ subcategories, onItemPress }) => {
       activeOpacity={0.8}
     >
       <Image
-        source={{ uri: item.icon || 'https://via.placeholder.com/80/E0E0E0/000000?text=Subcat' }}
+        source={{
+          uri:
+            item.icon ||
+            "https://via.placeholder.com/80/E0E0E0/000000?text=Subcat",
+        }}
         style={styles.subcategoryImage}
         resizeMode="cover"
       />
-      <Text style={styles.subcategoryName} numberOfLines={1}>{item.name}</Text>
+      <Text style={styles.subcategoryName} numberOfLines={1}>
+        {item.name}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -81,8 +91,9 @@ const ProductsScreen = () => {
 
   // Redux hooks
   const dispatch = useDispatch();
-      const user = useSelector((state) => state.user.user);
-  
+  const user = useSelector((state) => state.user.user);
+const buyer = useSelector((state) => state.buyer.buyer);
+
   const wishlistItems = useSelector((state) => state.wishlist.items);
   const wishlistLoading = useSelector((state) => state.wishlist.loading);
 
@@ -99,10 +110,9 @@ const ProductsScreen = () => {
 
   // Handles the sidebar toggle state
   const toggleSidebar = () => {
-    setSidebarVisible(prev => !prev);
+    setSidebarVisible((prev) => !prev);
   };
 
-  // New useEffect to handle the animation based on sidebarVisible state
   useEffect(() => {
     const toValue = sidebarVisible ? 0 : -width * 0.8;
     Animated.timing(sidebarX, {
@@ -114,7 +124,7 @@ const ProductsScreen = () => {
 
   // Close sidebar on screen blur
   useEffect(() => {
-    const unsubscribe = navigation.addListener('blur', () => {
+    const unsubscribe = navigation.addListener("blur", () => {
       if (sidebarVisible) {
         setSidebarVisible(false);
       }
@@ -122,49 +132,58 @@ const ProductsScreen = () => {
     return unsubscribe;
   }, [navigation, sidebarVisible]);
 
-  useEffect(() => {
-    // Fetch wishlist and product data
-    dispatch(fetchUserWishlist());
+  const fetchProductData = useCallback(async () => {
+        if (!productslug) {
+            setLoading(false);
+            setError("Product slug is missing.");
+            return;
+        }
 
-    if (!productslug) {
-      setLoading(false);
-      setError("Product slug is missing.");
-      return;
-    }
+        setLoading(true); 
+        setError(null);
+        
+        try {
+            const encodedSlug = encodeURIComponent(productslug);
 
-    const fetchProductData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const encodedSlug = encodeURIComponent(productslug);
-        const response = await fetch(`https://www.dialexportmart.com/api/manufacturers/${encodedSlug}`);
+            const response = await fetch(
+                `https://www.dialexportmart.com/api/manufacturers/${encodedSlug}?userId=${
+                    user?._id || ""
+                }`
+            );
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch product data: ${response.status}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch product data: ${response.status}`);
+            }
+            const data = await response.json();
+
+            setProducts(data.products || []);
+            setSubcategories(data.subcategories || []);
+            setBusinessProfile(data.businessProfile || null);
+            setRelatedProducts(data.relatedProducts || []);
+        } catch (err) {
+            console.error("Error fetching product:", err?.message || err);
+            setError("Could not load product details.");
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [productslug, user?._id]); // Dependencies for useCallback
+
+
+    // ✅ 2. useEffect को अपडेट किया गया: यह isFocused और productslug दोनों पर चलेगा
+    useEffect(() => {
+        // यह सुनिश्चित करता है कि जब भी screen focus में आए (यानी, reload हो) 
+        // या productslug (navigation.push के कारण) बदल जाए, तो डेटा fetch हो।
+        if (productslug && isFocused) { // ✅ isFocused check जोड़ा गया
+            dispatch(fetchUserWishlist()); // Wishlist हमेशा fetch करें
+            fetchProductData(); // Main product data fetch करें
         }
-        const data = await response.json();
-
-        setProducts(data.products || []);
-        setSubcategories(data.subcategories || []);
-        setBusinessProfile(data.businessProfile || null);
-        setRelatedProducts(data.relatedProducts || []);
-
-      } catch (err) {
-        console.error("Error fetching product:", err?.message || err);
-        setError("Could not load product details.");
-        setProducts([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProductData();
-  }, [productslug, dispatch]);
+    }, [isFocused, productslug, dispatch, fetchProductData]); // ✅ isFocused और fetchProductData को dependency में जोड़ा गया
 
   useLayoutEffect(() => {
-    StatusBar.setBarStyle('dark-content', true);
-    if (Platform.OS === 'android') {
-      StatusBar.setBackgroundColor('#F6F9FF');
+    StatusBar.setBarStyle("dark-content", true);
+    if (Platform.OS === "android") {
+      StatusBar.setBackgroundColor("#F6F9FF");
     }
     navigation.setOptions({
       headerShown: false,
@@ -181,20 +200,24 @@ const ProductsScreen = () => {
   const handleRelatedProductPress = (product) => {
     navigation.push("ProductsScreen", { productslug: product.productslug });
   };
-  
-  // This is the core function for toggling wishlist status
+
+ // ✅ Updated Wishlist Toggle (for Buyer + User)
   const toggleWishlist = (product) => {
-    // Check if the product is already in the wishlist using the product's _id
-    const isWishlisted = wishlistItems.some(item => item._id === product._id);
-            if (!user) {
-    navigation.navigate('WishlistScreen');
-    return;
-  }
+    const isWishlisted = wishlistItems.some((item) => item._id === product._id);
+
+    // If neither user nor buyer is logged in
+    if (!user && !buyer) {
+      Alert.alert(
+        "Login Required",
+        "Please login first to manage your wishlist.",
+        [{ text: "OK", onPress: () => navigation.navigate("BuySell") }]
+      );
+      return;
+    }
+
     if (isWishlisted) {
-      // If it's wishlisted, remove it
       dispatch(removeProductFromWishlist(product._id));
     } else {
-      // If it's not, add it.
       dispatch(addProductToWishlist(product));
     }
   };
@@ -207,31 +230,31 @@ const ProductsScreen = () => {
     >
       <Image
         source={{
-          uri: item.images?.[0]?.url || item.images?.[0] || 'https://via.placeholder.com/80/E0E0E0/000000?text=Related',
+          uri:
+            item.images?.[0]?.url ||
+            item.images?.[0] ||
+            "https://via.placeholder.com/80/E0E0E0/000000?text=Related",
         }}
         style={styles.relatedProductImage}
         resizeMode="contain"
       />
       <Text style={styles.relatedProductName} numberOfLines={2}>
-        {item.name || 'No name available'}
+        {item.name || "No name available"}
       </Text>
     </TouchableOpacity>
   );
 
-  const handleContactSeller = () => {
-    Alert.alert("Contact Seller", "This would initiate contact with the seller, e.g., via call, email, or an inquiry form.");
-  };
+  const renderProductItem = ({ item: product }) => {
+    const isWishlisted = wishlistItems.some((item) => item._id === product._id);
+    const imageUri =
+      product?.images?.[0]?.url ||
+      product?.images?.[0] ||
+      "https://via.placeholder.com/300/F0F0F0/000000?text=Product+Image";
 
-const renderProductItem = ({ item: product }) => {
-    const isWishlisted = wishlistItems.some(item => item._id === product._id);
-    const imageUri = product?.images?.[0]?.url || product?.images?.[0] || "https://via.placeholder.com/300/F0F0F0/000000?text=Product+Image";
-    
-    // Add a quick check to see if the image exists at all
     const imageSource = imageUri ? { uri: imageUri } : null;
 
     return (
       <View style={styles.productInfoCard}>
-        {/* Refactored Image Card with a single TouchableOpacity */}
         <TouchableOpacity
           style={styles.imageCard}
           onPress={() => {
@@ -247,7 +270,6 @@ const renderProductItem = ({ item: product }) => {
               source={imageSource}
               style={styles.productImage}
               resizeMode="contain"
-              onError={(e) => console.log('Image failed to load:', e.nativeEvent.error)}
             />
           ) : (
             <View style={styles.placeholderImageContainer}>
@@ -255,7 +277,6 @@ const renderProductItem = ({ item: product }) => {
             </View>
           )}
 
-          {/* Wishlist Button */}
           <TouchableOpacity
             style={styles.wishlistButton}
             onPress={() => toggleWishlist(product)}
@@ -268,7 +289,6 @@ const renderProductItem = ({ item: product }) => {
           </TouchableOpacity>
         </TouchableOpacity>
 
-        {/* Product details section */}
         <Text style={styles.productTitle}>{product.name}</Text>
 
         <View style={styles.infoRow}>
@@ -281,7 +301,8 @@ const renderProductItem = ({ item: product }) => {
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>MOQ:</Text>
           <Text style={styles.infoValue}>
-            {product.minimumOrderQuantity || "N/A"} {product.moqUnit || "Number"}
+            {product.minimumOrderQuantity || "N/A"}{" "}
+            {product.moqUnit || "Number"}
           </Text>
         </View>
 
@@ -296,26 +317,43 @@ const renderProductItem = ({ item: product }) => {
         {businessProfile && (
           <View style={styles.businessProfileSection}>
             <View style={styles.companyRow}>
-              <Ionicons name="business-outline" size={16} color="#007bff" style={styles.iconStyle} />
-              <Text style={styles.companyNameText}>{businessProfile.companyName}</Text>
+              <Ionicons
+                name="business-outline"
+                size={16}
+                color="#007bff"
+                style={styles.iconStyle}
+              />
+              <Text style={styles.companyNameText}>
+                {businessProfile.companyName}
+              </Text>
             </View>
 
             <View style={styles.badgesWrapper}>
-              {/* Use !! to explicitly cast to a boolean */}
               {!!businessProfile.yearOfEstablishment && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>🏢 Est. {businessProfile.yearOfEstablishment}</Text>
+                  <Text style={styles.badgeText}>
+                    🏢 Est. {businessProfile.yearOfEstablishment}
+                  </Text>
                 </View>
               )}
-              {/* Use !! to explicitly cast to a boolean */}
               {!!product?.tradeShopping?.gst && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>✅ GST: {product.tradeShopping.gst}%</Text>
+                  <Text style={styles.badgeText}>
+                    ✅ GST: {product.tradeShopping.gst}%
+                  </Text>
                 </View>
               )}
-              <View style={[styles.badge, product.tradeShopping.isReturnable ? styles.returnableYes : styles.returnableNo]}>
+              <View
+                style={[
+                  styles.badge,
+                  product.tradeShopping.isReturnable
+                    ? styles.returnableYes
+                    : styles.returnableNo,
+                ]}
+              >
                 <Text style={styles.badgeText}>
-                  🔁 Returnable: {product.tradeShopping.isReturnable ? "Yes" : "No"}
+                  🔁 Returnable:{" "}
+                  {product.tradeShopping.isReturnable ? "Yes" : "No"}
                 </Text>
               </View>
             </View>
@@ -328,10 +366,9 @@ const renderProductItem = ({ item: product }) => {
     );
   };
 
-
   if (loading || wishlistLoading) {
     return (
-      <SafeAreaView style={styles.safeAreaContainer} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safeAreaContainer} edges={["top", "left", "right"]}>
         <View style={styles.searchBarWrapper}>
           <SearchBarWithSuggestions toggleSidebar={toggleSidebar} />
         </View>
@@ -348,12 +385,17 @@ const renderProductItem = ({ item: product }) => {
 
   if (error) {
     return (
-      <SafeAreaView style={styles.safeAreaContainer} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safeAreaContainer} edges={["top", "left", "right"]}>
         <View style={styles.searchBarWrapper}>
           <SearchBarWithSuggestions toggleSidebar={toggleSidebar} />
         </View>
         <View style={[styles.centeredContainer, { paddingTop: 50 }]}>
-          <Ionicons name="alert-circle-outline" size={50} color="#FF6347" style={{ marginBottom: 10 }} />
+          <Ionicons
+            name="alert-circle-outline"
+            size={50}
+            color="#FF6347"
+            style={{ marginBottom: 10 }}
+          />
           <Text style={styles.errorText}>{error}</Text>
         </View>
         <View style={styles.bottomTabsContainer}>
@@ -365,13 +407,20 @@ const renderProductItem = ({ item: product }) => {
 
   if (products.length === 0) {
     return (
-      <SafeAreaView style={styles.safeAreaContainer} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safeAreaContainer} edges={["top", "left", "right"]}>
         <View style={styles.searchBarWrapper}>
           <SearchBarWithSuggestions toggleSidebar={toggleSidebar} />
         </View>
         <View style={[styles.centeredContainer, { paddingTop: 50 }]}>
-          <Ionicons name="information-circle-outline" size={50} color="#888" style={{ marginBottom: 10 }} />
-          <Text style={styles.errorText}>No products found for this slug.</Text>
+          <Ionicons
+            name="information-circle-outline"
+            size={50}
+            color="#888"
+            style={{ marginBottom: 10 }}
+          />
+          <Text style={styles.errorText}>
+            This product is not available. It may belong to a seller you have blocked.
+          </Text>
         </View>
         <View style={styles.bottomTabsContainer}>
           <BottomTabs />
@@ -381,12 +430,17 @@ const renderProductItem = ({ item: product }) => {
   }
 
   return (
-    <SafeAreaView style={styles.safeAreaContainer} edges={['top', 'left', 'right']}>
-      {/* Sidebar and Backdrop are only rendered if the sidebar is visible and the screen is focused */}
+    <SafeAreaView style={styles.safeAreaContainer} edges={["top", "left", "right"]}>
       {sidebarVisible && isFocused && (
         <>
-          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={toggleSidebar} />
-          <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarX }] }]}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={toggleSidebar}
+          />
+          <Animated.View
+            style={[styles.sidebar, { transform: [{ translateX: sidebarX }] }]}
+          >
             <Sidebar
               activeScreen={null}
               setActiveScreen={() => {}}
@@ -396,7 +450,7 @@ const renderProductItem = ({ item: product }) => {
           </Animated.View>
         </>
       )}
-      
+
       <View style={styles.searchBarWrapper}>
         <SearchBarWithSuggestions toggleSidebar={toggleSidebar} />
       </View>
@@ -406,10 +460,10 @@ const renderProductItem = ({ item: product }) => {
         keyExtractor={(item) => item._id}
         renderItem={renderProductItem}
         ListHeaderComponent={() => (
-            <SubcategorySlider
-              subcategories={subcategories}
-              onItemPress={handleSubcategoryPress}
-            />
+          <SubcategorySlider
+            subcategories={subcategories}
+            onItemPress={handleSubcategoryPress}
+          />
         )}
         ListFooterComponent={() => (
           <View>
@@ -419,7 +473,9 @@ const renderProductItem = ({ item: product }) => {
                 <FlatList
                   horizontal
                   data={relatedProducts}
-                  keyExtractor={(item, index) => `${item._id || item.productslug || 'related'}-${index}`}
+                  keyExtractor={(item, index) =>
+                    `${item._id || item.productslug || "related"}-${index}`
+                  }
                   renderItem={renderRelatedProductItem}
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.relatedProductsListContent}
@@ -428,7 +484,9 @@ const renderProductItem = ({ item: product }) => {
             )}
             {(!relatedProducts || relatedProducts.length === 0) && (
               <View style={styles.noRelatedProductsContainer}>
-                <Text style={styles.noRelatedProductsText}>No related products available.</Text>
+                <Text style={styles.noRelatedProductsText}>
+                  No related products available.
+                </Text>
               </View>
             )}
             <View style={{ height: 70 }} />
@@ -442,6 +500,8 @@ const renderProductItem = ({ item: product }) => {
     </SafeAreaView>
   );
 };
+
+
 
 const styles = StyleSheet.create({
    safeAreaContainer: {
@@ -468,7 +528,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     width: width * 0.8,
-height: Dimensions.get('window').height + (Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0),
+    height: Dimensions.get('window').height + (Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0),
     zIndex: 999,
     elevation: 5,
     backgroundColor: '#fff',
@@ -572,7 +632,10 @@ productInfoCard: {
   subcategorySliderContainer: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
-    marginTop: 70,
+    marginTop: Platform.select({
+      ios: 20,
+      android: 70,
+    }),
   },
   subcategorySliderTitle: {
   fontWeight: 'bold',
@@ -780,13 +843,13 @@ contactSellerButton: {
     fontWeight: "500",
     textAlign: "center",
   },
-  noRelatedProductsContainer: {
+ noRelatedProductsContainer: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
     borderRadius: 12,
     padding: 15,
-    marginBottom: 20,
-    alignItems: 'center',
+    alignItems: "center",
+    marginBottom: 30,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -802,6 +865,7 @@ contactSellerButton: {
   noRelatedProductsText: {
     fontSize: 14,
     color: "#888",
+    textAlign: "center",
   },
  bottomTabsContainer: {
     position: 'absolute', // Use 'absolute' for fixed positioning
@@ -819,13 +883,18 @@ contactSellerButton: {
     shadowRadius: 8,
   },
   wishlistButton: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "#fff",
     borderRadius: 20,
-    padding: 5,
-},
+    padding: 6,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 1.5,
+  },
 
 });
 

@@ -1,6 +1,4 @@
-// ProductDetailScreen.js
-
-import React, { useEffect, useState, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useState, useLayoutEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -13,106 +11,116 @@ import {
   Dimensions,
   Platform,
   StatusBar,
-  Animated, 
+  Animated,
   Alert,
-} from 'react-native';
-import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Buyfrom from '../components/BuyForm';
-import SearchBarWithSuggestions from '../components/SearchBar';
-import BottomTabs from '../components/BottomTabs';
+} from "react-native";
+import { useIsFocused, useNavigation, useRoute } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useDispatch, useSelector } from "react-redux";
+import { Ionicons } from "@expo/vector-icons";
+
+import Buyfrom from "../components/BuyForm";
+import SearchBarWithSuggestions from "../components/SearchBar";
+import BottomTabs from "../components/BottomTabs";
 import Sidebar from "../components/Sidebar";
-import { useDispatch, useSelector } from 'react-redux';
-import { Ionicons } from '@expo/vector-icons';
 import {
   addProductToWishlist,
   removeProductFromWishlist,
-} from '../redux/wishlistSlice';
+} from "../redux/wishlistSlice";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function ProductDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-    const isFocused = useIsFocused(); // To help with sidebar closing on blur
-  const { productId } = route.params;
-  
+  const isFocused = useIsFocused();
   const dispatch = useDispatch();
-  const user = useSelector((state) => state.user.user);
-   const token = useSelector((state) => state.user.token); 
-  const { blockedSellers } = useSelector((state) => state.blocked);
-  const { items: wishlistItems, loading: wishlistLoading } = useSelector((state) => state.wishlist);
 
+  const { productId } = route.params;
+
+  // Redux data
+  const user = useSelector((state) => state.user.user);
+  const userToken = useSelector((state) => state.user.token);
+  const buyer = useSelector((state) => state.buyer.buyer);
+  const buyerToken = useSelector((state) => state.buyer.token);
+  const { blockedByUser, blockedByBuyer } = useSelector((state) => state.blocked);
+  const { items: wishlistItems, loading: wishlistLoading } = useSelector(
+    (state) => state.wishlist
+  );
+
+  // ✅ Memoized blocked sellers to prevent re-renders
+  const allBlockedSellers = useMemo(
+    () => [...blockedByUser, ...blockedByBuyer],
+    [blockedByUser, blockedByBuyer]
+  );
+
+  // Local state
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [relatedCategories, setRelatedCategories] = useState([]);
+  const [hoveredImage, setHoveredImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [hoveredImage, setHoveredImage] = useState(null);
   const [showZoomModal, setShowZoomModal] = useState(false);
-
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const sidebarX = useRef(new Animated.Value(-width * 0.8)).current;
 
-  // FIX: This is the critical change. We check both potential locations for the product ID.
+  // Wishlist check
   const isProductInWishlist = wishlistItems.some(
-    (item) => item._id === productId || (item.product && item.product._id === productId)
+    (item) => item._id === productId || item.product?._id === productId
   );
 
-    // Checks if the product's seller is blocked
-  const isSellerBlocked = product?.userId?._id && blockedSellers.includes(product.userId._id);
+  // Blocked seller check
+  const isSellerBlocked =
+    product?.userId?._id && allBlockedSellers.includes(product.userId._id);
 
-  // Handles the sidebar toggle state
-  const toggleSidebar = () => {
-    setSidebarVisible(prev => !prev);
-  };
+  // Sidebar toggle
+  const toggleSidebar = () => setSidebarVisible((prev) => !prev);
 
-  // New useEffect to handle the animation based on sidebarVisible state
+  // Animate sidebar
   useEffect(() => {
-    const toValue = sidebarVisible ? 0 : -width * 0.8;
     Animated.timing(sidebarX, {
-      toValue,
+      toValue: sidebarVisible ? 0 : -width * 0.8,
       duration: 300,
       useNativeDriver: true,
     }).start();
   }, [sidebarVisible]);
 
-  // Close sidebar on screen blur
+  // Close sidebar on blur
   useEffect(() => {
-    const unsubscribe = navigation.addListener('blur', () => {
-      if (sidebarVisible) {
-        setSidebarVisible(false);
-      }
+    const unsubscribe = navigation.addListener("blur", () => {
+      if (sidebarVisible) setSidebarVisible(false);
     });
     return unsubscribe;
   }, [navigation, sidebarVisible]);
 
+  // Header styling
   useLayoutEffect(() => {
-    StatusBar.setBarStyle('dark-content', true);
-    if (Platform.OS === 'android') {
-      StatusBar.setBackgroundColor('#F6F9FF');
-    }
-    navigation.setOptions({
-      headerShown: false,
-    });
+    StatusBar.setBarStyle("dark-content", true);
+    if (Platform.OS === "android") StatusBar.setBackgroundColor("#F6F9FF");
+    navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // Fetch product details
- // 👇 CRITICAL CHANGE 2: Extract fetch logic into a standalone function
+  // ✅ Fetch Product
   const fetchProduct = async (id) => {
     if (!id) return;
     try {
       setLoading(true);
-      const userIdParam = user?._id ? `?userId=${user._id}` : "";
-      const res = await fetch(`https://www.dialexportmart.com/api/products/${id}${userIdParam}`);
+      const queryParam = user?._id
+        ? `?userId=${user._id}`
+        : buyer?._id
+        ? `?buyerId=${buyer._id}`
+        : "";
+
+      const res = await fetch(
+        `https://www.dialexportmart.com/api/products/${id}${queryParam}`
+      );
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Error fetching product.');
-      } 
-      
-      // Client-side check for blocked seller (this logic remains correct)
-      if (data.userId && blockedSellers.includes(data.userId._id)) {
+      if (!res.ok) throw new Error(data.error || "Error fetching product.");
+
+      // Client-side block check
+      if (data.userId && allBlockedSellers.includes(data.userId._id)) {
         setError("This product is from a blocked seller and cannot be viewed.");
         setProduct(null);
         setRelatedProducts([]);
@@ -131,44 +139,88 @@ export default function ProductDetailScreen() {
     }
   };
 
-
-  // 👇 CRITICAL CHANGE 3: Update useEffect to call the new fetchProduct function
+  // ✅ Re-fetch on product/user/block change
   useEffect(() => {
     if (productId) {
-      fetchProduct(productId); // Now calls the new extracted function
+      fetchProduct(productId);
       setHoveredImage(null);
     }
-  }, [productId, user, blockedSellers]); // blockedSellers change already triggers re-fetch, but the manual call in handleBlockSeller ensures it happens immediately after blocking, even before the Redux state updates propagate fully.
+  }, [productId, user, allBlockedSellers]);
 
-
+  // ✅ Prevent infinite loop (removed hoveredImage dep)
   useEffect(() => {
-    if (product && product.images && product.images.length > 0 && !hoveredImage) {
+    if (product?.images?.length > 0 && !hoveredImage) {
       setHoveredImage(product.images[0]);
     }
-  }, [product, hoveredImage]);
+  }, [product]);
 
-
-  // --- Filtering Logic ---
+  // --- Filters ---
   const visibleRelatedProducts = relatedProducts.filter(
-    (p) => !blockedSellers.includes(p.userId?._id)
+    (p) => !allBlockedSellers.includes(p.userId?._id)
   );
-
   const visibleRelatedCategories = relatedCategories.filter(
-    (c) => !blockedSellers.includes(c.userId?._id) // Assuming related categories have a userId if they are product-as-category-display
+    (c) => !allBlockedSellers.includes(c.userId?._id)
   );
-  
 
-  const stripHTML = (html) => {
-    return html.replace(/<[^>]*>/g, '');
+  const stripHTML = (html) => html.replace(/<[^>]*>/g, "");
+
+  // --- Block Seller ---
+  const handleBlockSeller = async (sellerId) => {
+    try {
+      const authRole = user ? "user" : buyer ? "buyer" : null;
+      const authToken = user ? userToken : buyer ? buyerToken : null;
+
+      if (!authToken || !authRole)
+        return Alert.alert("Login Required", "Please log in first.", [
+          { text: "OK", onPress: () => navigation.navigate("BuySell") },
+        ]);
+
+      Alert.alert("Block Seller", "Are you sure you want to block this seller?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          onPress: async () => {
+            const res = await fetch(
+              "https://www.dialexportmart.com/api/seller/block",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${authToken}`,
+                },
+                body: JSON.stringify({ sellerId, role: authRole.toLowerCase() }),
+              }
+            );
+            const data = await res.json();
+            if (res.ok && data.success) {
+              Alert.alert("✅ Success", data.message || "Seller blocked");
+              fetchProduct(productId); // refresh instantly
+            } else {
+              Alert.alert("Error", data.error || "Failed to block seller");
+            }
+          },
+        },
+      ]);
+    } catch (error) {
+      console.error("Block seller error:", error);
+    }
   };
 
-   const handleReportSeller = async (sellerId) => {
-    if (!token) {
-      Alert.alert("Authentication Required", "Please log in first to report a seller.", [
-        { text: "OK", onPress: () => navigation.navigate('Login') }
-      ]);
+    // --- Report Seller ---
+  const handleReportSeller = async (sellerId) => {
+  try {
+    const authRole = user ? "user" : buyer ? "buyer" : null;
+    const authToken = user ? userToken : buyer ? buyerToken : null;
+
+    if (!authToken || !authRole) {
+      Alert.alert(
+        "Login Required",
+        "Please log in first to report this seller.",
+        [{ text: "OK", onPress: () => navigation.navigate("BuySell") }]
+      );
       return;
     }
+
     Alert.alert(
       "Report Seller",
       "Are you sure you want to report this seller for objectionable content?",
@@ -182,84 +234,49 @@ export default function ProductDetailScreen() {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
+                  Authorization: `Bearer ${authToken}`,
                 },
                 body: JSON.stringify({
                   sellerId,
                   reason: "Objectionable / fake content",
+                  authRole, // fixed key name
                 }),
               });
+
               const data = await res.json();
               if (res.ok) {
                 Alert.alert("✅ Success", "Report submitted. Admin will review it.");
               } else {
+                console.log("API Error:", data);
                 Alert.alert("Error", data.error || "Something went wrong during reporting.");
               }
             } catch (err) {
               console.error(err);
               Alert.alert("Network Error", "Please check your connection and try again.");
             }
-          }
-        }
+          },
+        },
       ]
     );
-  };
-
-  const handleBlockSeller = async (sellerId) => {
-    if (!token) {
-      Alert.alert("Authentication Required", "Please log in first to block a seller.", [
-        { text: "OK", onPress: () => navigation.navigate('Login') }
-      ]);
-      return;
-    }
-
-    Alert.alert(
-      "Block Seller",
-      "Are you sure you want to block this seller? You will not see their products.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Block",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const res = await fetch("https://www.dialexportmart.com/api/seller/block", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ sellerId }),
-              });
-              const data = await res.json();
-              if (res.ok) {
-                Alert.alert("🚫 Blocked", data.message || "Seller blocked successfully.");
-                await fetchProduct(productId); 
-
-              } else {
-                Alert.alert("Error", data.error || "Something went wrong while blocking.");
-              }
-            } catch (err) {
-              console.error(err);
-              Alert.alert("Network Error", "Please check your connection and try again.");
-            }
-          }
-        }
-      ]
-    );
-  };
-  
-  const handleWishlistToggle = () => {
-      if (!user) {
-    navigation.navigate('WishlistScreen');
-    return;
+  } catch (error) {
+    console.error("Report seller error:", error);
+    Alert.alert("Error", "Failed to report seller. Try again later.");
   }
-    if (isProductInWishlist) {
-      dispatch(removeProductFromWishlist(productId));
-    } else {
-      dispatch(addProductToWishlist(productId));
-    }
+};
+
+
+  // --- Wishlist Toggle ---
+  const handleWishlistToggle = () => {
+    if (!user && !buyer)
+      return Alert.alert("Login Required", "Please login to manage wishlist.", [
+        { text: "OK", onPress: () => navigation.navigate("BuySell") },
+      ]);
+
+    isProductInWishlist
+      ? dispatch(removeProductFromWishlist(productId))
+      : dispatch(addProductToWishlist(productId));
   };
+
 
   // --- Render based on state ---
   if (loading) {
@@ -768,7 +785,6 @@ const styles = StyleSheet.create({
   flexDirection: "row",
   justifyContent: "flex-end",
   alignItems: "center",
-  marginBottom: 10,
   gap: 10, // space between icons
 },
 
@@ -893,10 +909,14 @@ blockButton: {
     fontWeight: '500',
     color: '#0288d1', // Corresponds to blue-700
   },
+  scrollViewContent: {
+    marginTop: Platform.OS === "ios" ? 10 : 40,
+  },
+
   productCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
-    marginTop: 55,
+    marginTop: 5,
     padding: 15,
     shadowRadius: 4,
     elevation: 3,
@@ -946,13 +966,12 @@ blockButton: {
   },
   infoSection: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 1,
   },
   productName: {
     fontSize: 26,
     fontWeight: 'bold',
     color: '#1a202c', // Corresponds to gray-900
-    marginBottom: 5,
   },
   metaInfo: {
     flexDirection: 'row',
@@ -1129,27 +1148,24 @@ tableCellValue: {
   },
   buyFromContainer: {
     borderTopWidth: 1,
-    marginTop:12,
+    marginTop:8,
     borderTopColor: '#e2e8f0',
   },
   relatedSection: {
     backgroundColor: '#fff',
     borderRadius: 20,
     marginHorizontal: 15,
-    marginTop: 20, 
   },
   relatedSectionTitle: {
     fontWeight: 'bold',
   fontSize: 14,
-  marginTop: 15,
+  marginTop: 10,
   marginBottom: 8,
   color: '#333',
   },
-  relatedProductsScroll: {
-    paddingBottom: 10, // Gives some space for horizontal scroll
-  },
+  
   relatedProductCard: {
-    width: width * 0.46, // Adjust width for horizontal scroll
+    width: width * 0.50, // Adjust width for horizontal scroll
     marginRight: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -1159,7 +1175,7 @@ tableCellValue: {
   },
   relatedProductImageContainer: {
     width: '100%',
-    height: 180,
+    height: 160,
     backgroundColor: '#f7fafc',
     justifyContent: 'center',
     alignItems: 'center',

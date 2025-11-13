@@ -2,7 +2,7 @@
   "expo": {
     "name": "DialExportMart",
     "slug": "dial-export-mart",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/New_icon.png",
     "userInterfaceStyle": "light",
@@ -31,7 +31,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.nazim_saifi.dialexportmart",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 25
+      "versionCode": 26
     },
     "web": {
       "favicon": "./assets/favicon.png"

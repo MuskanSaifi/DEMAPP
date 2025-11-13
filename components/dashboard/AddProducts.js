@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Linking,
   Alert, // Import Alert for permissions
+  Platform
 } from 'react-native';
 import axios from 'axios';
 import { showMessage } from 'react-native-flash-message';
@@ -552,6 +553,7 @@ const AddProduct = () => {
 <Picker.Item label="Milliliter" value="Milliliters" />
 <Picker.Item label="Gallon" value="Gallon/Gallons" />
 <Picker.Item label="Barrel" value="Barrel/Barrels" />
+
               </Picker>
             </View>
           </View>
@@ -1603,7 +1605,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 5,
     alignItems: 'center',
-    marginBottom:70,
+      marginBottom: Platform.OS === "ios" ? 60 : 120, // 👈 iOS smaller, Android more
   },
   submitButtonText: {
     color: '#fff',

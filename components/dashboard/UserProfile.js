@@ -441,26 +441,8 @@ useEffect(() => {
       </TouchableOpacity>
 
       {/* ==== Delete Account ==== */}
-{/* ===== Visible Delete Account (just info alert) ===== */}
-<TouchableOpacity
+ <TouchableOpacity
   style={styles.settingItem}
-  onPress={() =>
-    Alert.alert(
-      "Delete Account",
-      "Your request should be on proceed. Your account delete support is only available via request.",
-      [{ text: "OK", style: "default" }]
-    )
-  }
->
-  <Ionicons name="trash-outline" size={20} color="#DC2626" />
-  <Text style={[styles.settingText, { color: "#DC2626" }]}>
-    Delete Account
-  </Text>
-</TouchableOpacity>
-
-{/* ===== Hidden Delete Account (real delete) ===== */}
-<TouchableOpacity
-  style={{ display: "none" }} // hidden button
   onPress={handleDeleteAccount}
   disabled={deleting}
 >
@@ -475,8 +457,6 @@ useEffect(() => {
     </>
   )}
 </TouchableOpacity>
-
-
 
 
       <TouchableOpacity

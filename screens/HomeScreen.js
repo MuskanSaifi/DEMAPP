@@ -6,7 +6,7 @@ import {
   Dimensions,
   TouchableOpacity,
   Animated,
-     Platform, StatusBar
+  Platform, StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SearchBarWithSuggestions from '../components/SearchBar';
@@ -17,6 +17,7 @@ import ProductSections from '../components/ProductSections';
 import BottomAdd from '../components/BottomAdd';
 import Sidebar from '../components/Sidebar';
 import Frames from '../components/Frames';
+import Packages from '../components/Packages';
 
 const { width } = Dimensions.get('window');
 
@@ -43,6 +44,7 @@ const HomeScreen = ({ navigation }) => {
     <ProductSections key="productsections1" tag="trending" Name="Trending" />,
     <ProductSections key="productsections2" tag="diwaliOffer" Name="Featured Products" />,
     <ProductSections key="productsections3" tag="holiOffer" Name="Products You May Like" />,
+    <Packages key="Packages" />,
     <BottomAdd key="bottomadd" />,
   ];
 
@@ -74,7 +76,7 @@ const HomeScreen = ({ navigation }) => {
         renderItem={({ item }) => <View style={styles.section}>{item}</View>}
         keyExtractor={(_, index) => index.toString()}
         ListFooterComponent={<View style={{ height: 20 }} />}
-        contentContainerStyle={{ paddingTop: 50 }}
+        contentContainerStyle={{ paddingTop: 8 }}
         style={styles.content}
       />
 

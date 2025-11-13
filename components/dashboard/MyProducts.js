@@ -2569,6 +2569,3 @@ pickerItem: {
   },
 });
 export default AllProducts;
-
-
-
