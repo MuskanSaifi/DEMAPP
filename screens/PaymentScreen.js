@@ -107,7 +107,6 @@ return (
         }
         return false;
       }
-
       return true;
     }}
     onError={(e) => {

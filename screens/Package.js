@@ -156,7 +156,7 @@ const PricingPlans = () => {
            onPress={() => {
   if (!user) {
     Alert.alert("Login Required", "Please login to purchase a plan.", [
-      { text: "OK", onPress: () => navigation.navigate("LoginScreen") },
+      { text: "OK", onPress: () => navigation.navigate("Login") },
     ]);
     return;
   }
